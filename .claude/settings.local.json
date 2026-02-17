@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm create:*)",
+      "Bash(npm:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm approve-builds:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm build:*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(curl:*)",
+      "Bash(python -c:*)",
+      "Bash(node -e \"\nconst { TEAMS, ALL_DRIVERS } = require\\(''./src/data/teams2026.ts''.replace\\(''.ts'',''''\\)\\);\n\")",
+      "Bash(node --input-type=module -e \"\nimport { TEAMS, ALL_DRIVERS } from ''./src/data/teams2026.ts'';\nconsole.log\\(''Teams:'', TEAMS.length\\);\nconsole.log\\(''Drivers:'', ALL_DRIVERS.length\\);\n\")",
+      "Bash(node:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.jolpi.ca)",
+      "WebFetch(domain:www.f1fantasytools.com)",
+      "WebSearch"
+    ]
+  }
+}

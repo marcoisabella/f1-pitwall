@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@theme {
+  --color-f1-bg: #0F0F13;
+  --color-f1-surface: #1A1A24;
+  --color-f1-elevated: #232333;
+  --color-f1-border: #2D2D3D;
+  --color-f1-text: #F0F0F0;
+  --color-f1-text-muted: #6B7280;
+  --color-f1-red: #E10600;
+  --color-f1-green: #00FF7F;
+  --color-f1-purple: #A855F7;
+  --color-f1-yellow: #FDE047;
+  --color-f1-cyan: #22D3EE;
+  --color-f1-white: #FFFFFF;
+
+  --color-tire-soft: #FF0000;
+  --color-tire-medium: #FFDD00;
+  --color-tire-hard: #FFFFFF;
+  --color-tire-inter: #40B040;
+  --color-tire-wet: #3080FF;
+
+  --font-display: 'Titillium Web', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-f1-bg);
+  color: var(--color-f1-text);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular numbers for timing data */
+.font-timing {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Diagonal stripe pattern for nav bar */
+.nav-stripes {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    rgba(255, 255, 255, 0.015) 4px,
+    rgba(255, 255, 255, 0.015) 8px
+  );
+}
+
+/* Scan-line overlay */
+.scanlines::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* Glow effects */
+.glow-red { text-shadow: 0 0 8px rgba(225, 6, 0, 0.6); }
+.glow-green { text-shadow: 0 0 8px rgba(0, 255, 127, 0.6); }
+.glow-purple { text-shadow: 0 0 8px rgba(168, 85, 247, 0.6); }
+.glow-cyan { text-shadow: 0 0 8px rgba(34, 211, 238, 0.6); }
+
+/* Smooth transitions for position changes */
+.driver-row {
+  transition: transform 0.5s ease, background-color 0.3s ease;
+}
+
+/* Connection status indicator pulse */
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse-live { animation: pulse-live 2s ease-in-out infinite; }
+
+/* Loading telemetry animation */
+@keyframes telemetry-wave {
+  0% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+  100% { transform: scaleY(0.3); }
+}
+.telemetry-bar { animation: telemetry-wave 1.2s ease-in-out infinite; }
+
+/* Countdown flip animation */
+@keyframes countdown-tick {
+  0% { transform: rotateX(0deg); }
+  100% { transform: rotateX(-10deg); }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-f1-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-f1-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-f1-text-muted); }
