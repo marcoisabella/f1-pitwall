@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import type { Driver } from '../../types/f1';
+import type { Driver, SectorBests } from '../../types/f1';
 import { DriverRow } from './DriverRow';
 
 interface LiveTimingBoardProps {
   drivers: Driver[];
+  sectorBests?: SectorBests;
 }
 
-export function LiveTimingBoard({ drivers }: LiveTimingBoardProps) {
+export function LiveTimingBoard({ drivers, sectorBests }: LiveTimingBoardProps) {
   const [gapMode, setGapMode] = useState<'leader' | 'interval'>('interval');
 
   if (drivers.length === 0) {
@@ -37,7 +38,7 @@ export function LiveTimingBoard({ drivers }: LiveTimingBoardProps) {
 
       <div className="bg-f1-surface rounded-lg overflow-hidden border border-f1-border">
         {/* Header */}
-        <div className="grid grid-cols-[3rem_1fr_5rem_5.5rem_4.5rem_4.5rem_4.5rem_3rem_2.5rem] gap-0 px-3 py-2 text-[10px] font-semibold text-f1-text-muted uppercase tracking-wider border-b border-f1-border font-[var(--font-display)]">
+        <div className="grid grid-cols-[3rem_1fr_5rem_5.5rem_4.5rem_4.5rem_4.5rem_3rem_2.5rem_2.5rem] gap-0 px-3 py-2 text-[10px] font-semibold text-f1-text-muted uppercase tracking-wider border-b border-f1-border font-[var(--font-display)]">
           <div>POS</div>
           <div>DRIVER</div>
           <div className="text-right">GAP</div>
@@ -47,6 +48,7 @@ export function LiveTimingBoard({ drivers }: LiveTimingBoardProps) {
           <div className="text-right">S3</div>
           <div className="text-center">TIRE</div>
           <div className="text-center">PIT</div>
+          <div className="text-center">DRS</div>
         </div>
 
         {/* Rows */}
@@ -55,6 +57,7 @@ export function LiveTimingBoard({ drivers }: LiveTimingBoardProps) {
             key={driver.driver_number}
             driver={driver}
             gapMode={gapMode}
+            sectorBests={sectorBests}
           />
         ))}
       </div>

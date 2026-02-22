@@ -33,6 +33,23 @@ async def fetch_live_state() -> dict:
         openf1.get_weather(session_key),
     )
 
+    # Fetch location data for track map (best-effort, don't fail if unavailable)
+    car_positions = []
+    try:
+        locations = await openf1.get_location(session_key)
+        # Get latest position per driver
+        latest_loc: dict[int, dict] = {}
+        for loc in locations:
+            num = loc.get("driver_number")
+            if num:
+                latest_loc[num] = loc
+        car_positions = [
+            {"driver_number": num, "x": loc.get("x", 0), "y": loc.get("y", 0)}
+            for num, loc in latest_loc.items()
+        ]
+    except Exception as e:
+        logger.debug(f"Location data unavailable: {e}")
+
     driver_map: dict[int, dict] = {}
     for d in drivers:
         num = d.get("driver_number")
@@ -53,6 +70,7 @@ async def fetch_live_state() -> dict:
                 "compound": None,
                 "tire_age": None,
                 "pit_stops": 0,
+                "drs": 0,
             }
 
     for p in positions:
@@ -66,11 +84,25 @@ async def fetch_live_state() -> dict:
             driver_map[num]["gap_to_leader"] = i.get("gap_to_leader")
             driver_map[num]["interval"] = i.get("interval")
 
+    # Track session-level sector bests for purple/green coloring
+    sector_bests = {"s1": None, "s2": None, "s3": None}
+    driver_sector_bests: dict[int, dict] = {}
     driver_laps: dict[int, dict] = {}
     for lap in laps:
         num = lap.get("driver_number")
         if num:
             driver_laps[num] = lap
+            # Track personal bests
+            if num not in driver_sector_bests:
+                driver_sector_bests[num] = {"s1": None, "s2": None, "s3": None}
+            for sector, key in [("s1", "duration_sector_1"), ("s2", "duration_sector_2"), ("s3", "duration_sector_3")]:
+                val = lap.get(key)
+                if val is not None:
+                    if driver_sector_bests[num][sector] is None or val < driver_sector_bests[num][sector]:
+                        driver_sector_bests[num][sector] = val
+                    if sector_bests[sector] is None or val < sector_bests[sector]:
+                        sector_bests[sector] = val
+
     for num, lap in driver_laps.items():
         if num in driver_map:
             driver_map[num]["last_lap_time"] = lap.get("lap_duration")
@@ -117,6 +149,8 @@ async def fetch_live_state() -> dict:
             "drivers": sorted_drivers,
             "race_control": race_control[-10:] if race_control else [],
             "weather": weather[-1] if weather else None,
+            "car_positions": car_positions,
+            "sector_bests": sector_bests,
         },
     }
 

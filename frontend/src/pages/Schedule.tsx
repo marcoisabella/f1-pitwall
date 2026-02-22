@@ -1,31 +1,67 @@
-import { RACES, PRE_SEASON_TESTING, SUMMER_BREAK } from '../data/calendar2026';
+import { useSchedule, type RaceAPI } from '../hooks/useSeasonData';
+import { PRE_SEASON_TESTING, SUMMER_BREAK, RACES as SEED_RACES } from '../data/calendar2026';
 import { countryFlag } from '../utils/countryFlags';
+import { FreshnessIndicator } from '../components/common/FreshnessIndicator';
+import { LoadingTelemetry } from '../components/common/LoadingTelemetry';
 
-function getBadge(race: typeof RACES[0]): { text: string; className: string } | null {
+function getBadge(race: RaceAPI, allRaces: RaceAPI[]): { text: string; className: string } | null {
   const now = new Date();
-  const raceDate = new Date(race.raceDay);
-  const nextRace = RACES.find(r => new Date(r.raceDay) >= now);
+  const raceDate = new Date(race.raceDay ?? race.date ?? '');
+  const nextRace = allRaces.find(r => new Date(r.raceDay ?? r.date ?? '') >= now);
   if (nextRace && nextRace.round === race.round) {
     return { text: 'NEXT', className: 'bg-f1-red text-white' };
   }
-  if (race.note?.includes('NEW CIRCUIT')) return { text: 'NEW', className: 'bg-f1-green/20 text-f1-green' };
-  if (race.note?.includes('FINAL')) return { text: 'FINAL', className: 'bg-f1-yellow/20 text-f1-yellow' };
-  if (race.note?.includes('SATURDAY')) return { text: 'SAT RACE', className: 'bg-f1-purple/20 text-f1-purple' };
-  if (race.note?.includes('Season finale')) return { text: 'FINALE', className: 'bg-f1-red/20 text-f1-red' };
+  const note = race.note ?? '';
+  if (note.includes('NEW CIRCUIT')) return { text: 'NEW', className: 'bg-f1-green/20 text-f1-green' };
+  if (note.includes('FINAL')) return { text: 'FINAL', className: 'bg-f1-yellow/20 text-f1-yellow' };
+  if (note.includes('SATURDAY')) return { text: 'SAT RACE', className: 'bg-f1-purple/20 text-f1-purple' };
+  if (note.includes('Season finale')) return { text: 'FINALE', className: 'bg-f1-red/20 text-f1-red' };
   if (raceDate < now) return { text: 'COMPLETED', className: 'bg-f1-border text-f1-text-muted' };
   return null;
 }
 
 export function Schedule() {
+  const { data: apiRaces, meta, isLoading } = useSchedule();
+
+  // Use API data, enrich with seed notes/country codes, or fall back to seed
+  const races: RaceAPI[] = (apiRaces && apiRaces.length > 0) ? apiRaces.map(r => {
+    const seed = SEED_RACES.find(s => s.round === r.round);
+    return {
+      ...r,
+      countryCode: r.countryCode ?? seed?.country ?? '',
+      raceDay: r.raceDay ?? r.date ?? seed?.raceDay ?? '',
+      dateStart: r.dateStart ?? seed?.dateStart ?? '',
+      dateEnd: r.dateEnd ?? seed?.dateEnd ?? '',
+      note: r.note ?? seed?.note ?? '',
+    };
+  }) : SEED_RACES.map(r => ({
+    round: r.round,
+    name: r.name,
+    circuit: r.circuit,
+    city: r.city,
+    country: r.countryName,
+    countryCode: r.country,
+    raceDay: r.raceDay,
+    dateStart: r.dateStart,
+    dateEnd: r.dateEnd,
+    sprint: r.sprint,
+    note: r.note,
+  }));
+
+  if (isLoading) return <LoadingTelemetry />;
+
   const now = new Date();
   const summerStart = new Date(SUMMER_BREAK.start);
   const summerEnd = new Date(SUMMER_BREAK.end);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold font-[var(--font-display)] text-f1-text">
-        2026 Season Calendar
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold font-[var(--font-display)] text-f1-text">
+          2026 Season Calendar
+        </h1>
+        {meta && <FreshnessIndicator source={meta.source} fetchedAt={meta.fetched_at} stale={meta.stale} />}
+      </div>
 
       {/* Pre-season testing */}
       <div className="bg-f1-surface rounded-lg border border-f1-border overflow-hidden">
@@ -49,12 +85,11 @@ export function Schedule() {
 
       {/* Race calendar */}
       <div className="space-y-2">
-        {RACES.map((race, i) => {
-          const badge = getBadge(race);
-          const isPast = new Date(race.raceDay) < now;
+        {races.map((race, i) => {
+          const badge = getBadge(race, races);
+          const isPast = new Date(race.raceDay ?? '') < now;
           const isNext = badge?.text === 'NEXT';
-          // Show summer break between rounds 13 and 14
-          const showBreak = i > 0 && RACES[i - 1].round === 13 && race.round === 14;
+          const showBreak = i > 0 && races[i - 1].round === 13 && race.round === 14;
 
           return (
             <div key={race.round}>
@@ -77,18 +112,13 @@ export function Schedule() {
                     : 'border-f1-border bg-f1-surface hover:bg-f1-elevated/30'
                 }`}
               >
-                {/* Round number */}
                 <span className={`font-timing text-sm w-8 text-center ${isNext ? 'text-f1-red font-bold' : 'text-f1-text-muted'}`}>
                   {String(race.round).padStart(2, '0')}
                 </span>
-
-                {/* Flag */}
-                <span className="text-xl w-8 text-center">{countryFlag(race.country)}</span>
-
-                {/* Race info */}
+                <span className="text-xl w-8 text-center">{countryFlag(race.countryCode ?? '')}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-semibold font-[var(--font-display)] truncate ${isNext ? 'text-f1-text' : 'text-f1-text'}`}>
+                    <span className="text-sm font-semibold font-[var(--font-display)] truncate text-f1-text">
                       {race.name}
                     </span>
                     {race.sprint && (
@@ -106,14 +136,12 @@ export function Schedule() {
                     {race.circuit} — {race.city}
                   </div>
                 </div>
-
-                {/* Dates */}
                 <div className="text-right shrink-0">
                   <div className="font-timing text-xs text-f1-text">
-                    {new Date(race.raceDay).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}
+                    {race.raceDay ? new Date(race.raceDay).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }) : ''}
                   </div>
                   <div className="font-timing text-[10px] text-f1-text-muted">
-                    {new Date(race.dateStart).toLocaleDateString('en-GB', { weekday: 'short' })}–{new Date(race.dateEnd).toLocaleDateString('en-GB', { weekday: 'short' })}
+                    {race.dateStart ? new Date(race.dateStart).toLocaleDateString('en-GB', { weekday: 'short' }) : ''}–{race.dateEnd ? new Date(race.dateEnd).toLocaleDateString('en-GB', { weekday: 'short' }) : ''}
                   </div>
                 </div>
               </div>
@@ -122,9 +150,8 @@ export function Schedule() {
         })}
       </div>
 
-      {/* Summary */}
       <div className="text-center text-f1-text-muted text-xs font-timing py-4">
-        {RACES.length} Races — {RACES.filter(r => r.sprint).length} Sprint Weekends — {PRE_SEASON_TESTING.length} Test Sessions
+        {races.length} Races — {races.filter(r => r.sprint).length} Sprint Weekends — {PRE_SEASON_TESTING.length} Test Sessions
       </div>
     </div>
   );

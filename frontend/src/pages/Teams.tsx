@@ -1,12 +1,26 @@
 import { Link } from 'react-router-dom';
-import { TEAMS, ENGINE_SUPPLIERS } from '../data/teams2026';
+import { useConstructors } from '../hooks/useSeasonData';
+import { TEAMS as SEED_TEAMS, ENGINE_SUPPLIERS } from '../data/teams2026';
+import { FreshnessIndicator } from '../components/common/FreshnessIndicator';
+import { LoadingTelemetry } from '../components/common/LoadingTelemetry';
 
 export function Teams() {
+  const { data: _apiTeams, meta, isLoading } = useConstructors();
+
+  // Merge API data with seed data (seed has richer fields like drivers, colors)
+  // For now we always use seed for display since Jolpica constructors lack driver/color info
+  const TEAMS = SEED_TEAMS;
+
+  if (isLoading) return <LoadingTelemetry />;
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold font-[var(--font-display)] text-f1-text">
-        2026 Teams — {TEAMS.length} Constructors
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold font-[var(--font-display)] text-f1-text">
+          2026 Teams — {TEAMS.length} Constructors
+        </h1>
+        {meta && <FreshnessIndicator source={meta.source} fetchedAt={meta.fetched_at} stale={meta.stale} />}
+      </div>
 
       {/* Team cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -16,14 +30,11 @@ export function Teams() {
             to={`/teams/${team.id}`}
             className="group bg-f1-surface rounded-lg border border-f1-border overflow-hidden hover:border-f1-text-muted transition-all"
           >
-            {/* Color gradient header */}
             <div
               className="h-2"
               style={{ background: `linear-gradient(90deg, ${team.color}, ${team.secondaryColor})` }}
             />
-
             <div className="p-4">
-              {/* Team name + engine */}
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="text-lg font-bold font-[var(--font-display)] text-f1-text group-hover:text-f1-white transition-colors">
@@ -38,12 +49,9 @@ export function Teams() {
                   {team.engine}
                 </span>
               </div>
-
-              {/* Drivers */}
               <div className="space-y-2 mb-3">
                 {team.drivers.map((driver) => (
                   <div key={driver.id} className="flex items-center gap-3">
-                    {/* Avatar circle with team color and initials */}
                     <div
                       className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
                       style={{ backgroundColor: team.color }}
@@ -62,8 +70,6 @@ export function Teams() {
                   </div>
                 ))}
               </div>
-
-              {/* Team info */}
               <div className="text-xs text-f1-text-muted space-y-1">
                 <div className="flex justify-between">
                   <span>Principal</span>
@@ -78,8 +84,6 @@ export function Teams() {
                   <span className="text-f1-text text-right truncate ml-4">{team.base}</span>
                 </div>
               </div>
-
-              {/* Note badge */}
               {team.note && (
                 <div className="mt-3 text-[10px] text-f1-text-muted italic line-clamp-2">
                   {team.note}

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { RACES, getNextRace, PRE_SEASON_TESTING } from '../data/calendar2026';
+import { useSchedule, type RaceAPI } from '../hooks/useSeasonData';
+import { RACES as SEED_RACES, PRE_SEASON_TESTING } from '../data/calendar2026';
 import { TEAMS } from '../data/teams2026';
 import { countryFlag } from '../utils/countryFlags';
+import { FreshnessIndicator } from '../components/common/FreshnessIndicator';
 
 function useCountdown(targetDate: string) {
   const [remaining, setRemaining] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -41,7 +43,27 @@ function CountdownBlock({ value, label }: { value: number; label: string }) {
 }
 
 export function Home() {
-  const nextRace = getNextRace();
+  const { data: apiRaces, meta } = useSchedule();
+
+  // Build race list from API or seed
+  const races: RaceAPI[] = (apiRaces && apiRaces.length > 0)
+    ? apiRaces.map(r => {
+        const seed = SEED_RACES.find(s => s.round === r.round);
+        return {
+          ...r,
+          countryCode: r.countryCode ?? seed?.country ?? '',
+          raceDay: r.raceDay ?? r.date ?? seed?.raceDay ?? '',
+        };
+      })
+    : SEED_RACES.map(r => ({
+        round: r.round, name: r.name, circuit: r.circuit, city: r.city,
+        country: r.countryName, countryCode: r.country,
+        raceDay: r.raceDay, dateStart: r.dateStart, dateEnd: r.dateEnd,
+        sprint: r.sprint, note: r.note,
+      }));
+
+  const now = new Date();
+  const nextRace = races.find(r => new Date(r.raceDay ?? '') >= now);
   const countdown = useCountdown(nextRace?.raceDay ?? '2026-12-31');
   const totalDrivers = TEAMS.reduce((sum, t) => sum + t.drivers.length, 0);
 
@@ -55,14 +77,17 @@ export function Home() {
           </div>
 
           <div className="relative">
-            <div className="text-f1-red text-xs font-semibold uppercase tracking-widest font-[var(--font-display)] mb-2">
-              Next Race — Round {nextRace.round}
+            <div className="flex items-center gap-3 mb-2">
+              <div className="text-f1-red text-xs font-semibold uppercase tracking-widest font-[var(--font-display)]">
+                Next Race — Round {nextRace.round}
+              </div>
+              {meta && <FreshnessIndicator source={meta.source} fetchedAt={meta.fetched_at} stale={meta.stale} />}
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold font-[var(--font-display)] text-f1-text mb-1">
-              {countryFlag(nextRace.country)} {nextRace.name}
+              {countryFlag(nextRace.countryCode ?? '')} {nextRace.name}
             </h1>
             <p className="text-f1-text-muted text-sm mb-6">
-              {nextRace.circuit} — {nextRace.city}, {nextRace.countryName}
+              {nextRace.circuit} — {nextRace.city}
               {nextRace.sprint && <span className="ml-2 px-2 py-0.5 bg-f1-yellow/20 text-f1-yellow rounded text-xs font-semibold">SPRINT</span>}
             </p>
 
@@ -97,10 +122,10 @@ export function Home() {
       {/* Season Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { value: RACES.length, label: 'Races', color: 'text-f1-red' },
+          { value: races.length, label: 'Races', color: 'text-f1-red' },
           { value: TEAMS.length, label: 'Teams', color: 'text-f1-cyan' },
           { value: totalDrivers, label: 'Drivers', color: 'text-f1-green' },
-          { value: RACES.filter(r => r.sprint).length, label: 'Sprints', color: 'text-f1-yellow' },
+          { value: races.filter(r => r.sprint).length, label: 'Sprints', color: 'text-f1-yellow' },
         ].map(stat => (
           <div key={stat.label} className="bg-f1-surface rounded-lg border border-f1-border p-4 text-center">
             <div className={`font-timing text-3xl font-bold ${stat.color}`}>{stat.value}</div>
@@ -140,10 +165,10 @@ export function Home() {
           </Link>
         </div>
         <div className="divide-y divide-f1-border">
-          {RACES.filter(r => new Date(r.raceDay) >= new Date()).slice(0, 5).map((race) => (
+          {races.filter(r => new Date(r.raceDay ?? '') >= now).slice(0, 5).map((race) => (
             <div key={race.round} className="px-4 py-3 flex items-center gap-4 hover:bg-f1-elevated/30 transition-colors">
               <span className="font-timing text-f1-text-muted text-xs w-8">{String(race.round).padStart(2, '0')}</span>
-              <span className="text-lg">{countryFlag(race.country)}</span>
+              <span className="text-lg">{countryFlag(race.countryCode ?? '')}</span>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-f1-text font-[var(--font-display)] truncate">{race.name}</div>
                 <div className="text-xs text-f1-text-muted">{race.circuit}</div>
@@ -151,7 +176,7 @@ export function Home() {
               <div className="flex items-center gap-2">
                 {race.sprint && <span className="px-1.5 py-0.5 bg-f1-yellow/20 text-f1-yellow rounded text-[10px] font-semibold">SPRINT</span>}
                 <span className="font-timing text-xs text-f1-text-muted whitespace-nowrap">
-                  {new Date(race.raceDay).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}
+                  {race.raceDay ? new Date(race.raceDay).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }) : ''}
                 </span>
               </div>
             </div>

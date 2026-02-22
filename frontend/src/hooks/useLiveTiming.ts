@@ -1,12 +1,14 @@
 import { useCallback, useState } from 'react';
 import { useWebSocket } from './useWebSocket';
-import type { ConnectionStatus, Driver, RaceControl, Session, Weather, WebSocketMessage } from '../types/f1';
+import type { CarPosition, ConnectionStatus, Driver, RaceControl, SectorBests, Session, Weather, WebSocketMessage } from '../types/f1';
 
 interface UseLiveTimingReturn {
   drivers: Driver[];
   weather: Weather | null;
   raceControl: RaceControl[];
   sessionInfo: Session | null;
+  carPositions: CarPosition[];
+  sectorBests: SectorBests;
   connectionStatus: ConnectionStatus;
 }
 
@@ -15,6 +17,8 @@ export function useLiveTiming(): UseLiveTimingReturn {
   const [weather, setWeather] = useState<Weather | null>(null);
   const [raceControl, setRaceControl] = useState<RaceControl[]>([]);
   const [sessionInfo, setSessionInfo] = useState<Session | null>(null);
+  const [carPositions, setCarPositions] = useState<CarPosition[]>([]);
+  const [sectorBests, setSectorBests] = useState<SectorBests>({ s1: null, s2: null, s3: null });
 
   const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/timing`;
 
@@ -37,6 +41,12 @@ export function useLiveTiming(): UseLiveTimingReturn {
       if (data.session) {
         setSessionInfo(data.session);
       }
+      if (data.car_positions) {
+        setCarPositions(data.car_positions);
+      }
+      if (data.sector_bests) {
+        setSectorBests(data.sector_bests);
+      }
     }
   }, []);
 
@@ -50,6 +60,8 @@ export function useLiveTiming(): UseLiveTimingReturn {
     weather,
     raceControl,
     sessionInfo,
+    carPositions,
+    sectorBests,
     connectionStatus,
   };
 }

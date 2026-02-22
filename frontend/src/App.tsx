@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { Layout } from './components/layout/Layout';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
@@ -10,10 +10,23 @@ import { Drivers } from './pages/Drivers';
 import { DriverDetail } from './pages/DriverDetail';
 import { Standings } from './pages/Standings';
 import { Regulations } from './pages/Regulations';
+import { Conditions } from './pages/Conditions';
 import { LiveDashboard } from './pages/LiveDashboard';
 import { Strategy } from './pages/Strategy';
 import { Fantasy } from './pages/Fantasy';
 import { Login } from './pages/Login';
+import { FantasyLayout } from './components/fantasy/FantasyLayout';
+import { TeamCalculator } from './pages/fantasy/TeamCalculator';
+import { BudgetBuilder } from './pages/fantasy/BudgetBuilder';
+import { LiveScoring } from './pages/fantasy/LiveScoring';
+import { SeasonSummary } from './pages/fantasy/SeasonSummary';
+import { EliteData } from './pages/fantasy/EliteData';
+import { Statistics } from './pages/fantasy/Statistics';
+import { TeamAnalyzer } from './pages/fantasy/TeamAnalyzer';
+import { LeagueView } from './pages/fantasy/LeagueView';
+import { Hindsight } from './pages/fantasy/Hindsight';
+import { DRSBoost } from './pages/fantasy/DRSBoost';
+import { ChipStrategy } from './pages/fantasy/ChipStrategy';
 
 export default function App() {
   return (
@@ -34,9 +47,26 @@ export default function App() {
             {/* Section B: Live Analytics */}
             <Route path="/live" element={<LiveDashboard />} />
             <Route path="/strategy" element={<Strategy />} />
+            <Route path="/conditions" element={<Conditions />} />
 
-            {/* Section C: Fantasy */}
-            <Route path="/fantasy" element={<ProtectedRoute><Fantasy /></ProtectedRoute>} />
+            {/* Section C: Fantasy Toolkit */}
+            <Route path="/fantasy" element={<FantasyLayout />}>
+              <Route index element={<Navigate to="/fantasy/calculator" replace />} />
+              <Route path="calculator" element={<TeamCalculator />} />
+              <Route path="budget" element={<BudgetBuilder />} />
+              <Route path="live" element={<LiveScoring />} />
+              <Route path="season" element={<SeasonSummary />} />
+              <Route path="elite" element={<EliteData />} />
+              <Route path="stats" element={<Statistics />} />
+              <Route path="analyzer" element={<TeamAnalyzer />} />
+              <Route path="league" element={<ProtectedRoute><LeagueView /></ProtectedRoute>} />
+              <Route path="hindsight" element={<Hindsight />} />
+              <Route path="drs" element={<DRSBoost />} />
+              <Route path="chips" element={<ChipStrategy />} />
+            </Route>
+
+            {/* Legacy fantasy route */}
+            <Route path="/fantasy-classic" element={<ProtectedRoute><Fantasy /></ProtectedRoute>} />
 
             {/* Auth */}
             <Route path="/login" element={<Login />} />

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.auth import hash_password
 from app.config import settings
 from app.models.database import User, async_session, create_tables
-from app.routers import auth, timing, weather, predictions, fantasy, websocket
+from app.routers import auth, timing, weather, predictions, fantasy, websocket, season, track
 
 
 @asynccontextmanager
@@ -44,6 +44,8 @@ app.include_router(timing.router, prefix="/api/timing", tags=["timing"])
 app.include_router(weather.router, prefix="/api/weather", tags=["weather"])
 app.include_router(predictions.router, prefix="/api/predictions", tags=["predictions"])
 app.include_router(fantasy.router, prefix="/api/fantasy", tags=["fantasy"])
+app.include_router(season.router, prefix="/api/season", tags=["season"])
+app.include_router(track.router, prefix="/api/track", tags=["track"])
 app.include_router(websocket.router, tags=["websocket"])
 
 

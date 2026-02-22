@@ -158,5 +158,12 @@ class OpenF1Client:
             {"session_key": session_key, "driver_number": driver_number},
         )
 
+    async def get_location(self, session_key: int, driver_number: int | None = None) -> list[dict]:
+        return await self._request(
+            "/location",
+            {"session_key": session_key, "driver_number": driver_number},
+            live=True,
+        )
+
 
 openf1 = OpenF1Client()

@@ -1,9 +1,12 @@
 import { useLiveTiming } from '../hooks/useLiveTiming';
 import { LiveTimingBoard } from '../components/timing/LiveTimingBoard';
 import { ConnectionStatus } from '../components/common/ConnectionStatus';
+import { TrackMap } from '../components/live/TrackMap';
+import { RaceControlFeed } from '../components/live/RaceControlFeed';
+import { EnhancedWeather } from '../components/live/EnhancedWeather';
 
 export function LiveDashboard() {
-  const { drivers, weather, sessionInfo, connectionStatus } = useLiveTiming();
+  const { drivers, weather, raceControl, sessionInfo, carPositions, sectorBests, connectionStatus } = useLiveTiming();
 
   return (
     <div className="space-y-4">
@@ -33,8 +36,24 @@ export function LiveDashboard() {
         <ConnectionStatus status={connectionStatus} />
       </div>
 
-      {/* Timing board */}
-      <LiveTimingBoard drivers={drivers} />
+      {/* Main layout: timing (2/3) + side panels (1/3) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left: Timing board */}
+        <div className="lg:col-span-2">
+          <LiveTimingBoard drivers={drivers} sectorBests={sectorBests} />
+        </div>
+
+        {/* Right: Track map + Race control + Weather */}
+        <div className="space-y-4">
+          <TrackMap
+            carPositions={carPositions}
+            circuitKey={sessionInfo?.circuit_key}
+            drivers={drivers}
+          />
+          <RaceControlFeed messages={raceControl} />
+          <EnhancedWeather weather={weather} />
+        </div>
+      </div>
     </div>
   );
 }

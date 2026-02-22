@@ -47,11 +47,25 @@ export interface RaceControl {
   lap_number?: number;
 }
 
+export interface CarPosition {
+  driver_number: number;
+  x: number;
+  y: number;
+}
+
+export interface SectorBests {
+  s1: number | null;
+  s2: number | null;
+  s3: number | null;
+}
+
 export interface LiveTimingState {
   session: Session | null;
   drivers: Driver[];
   race_control: RaceControl[];
   weather: Weather | null;
+  car_positions?: CarPosition[];
+  sector_bests?: SectorBests;
 }
 
 export interface WebSocketMessage {
