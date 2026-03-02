@@ -27,6 +27,9 @@ import { LeagueView } from './pages/fantasy/LeagueView';
 import { Hindsight } from './pages/fantasy/Hindsight';
 import { DRSBoost } from './pages/fantasy/DRSBoost';
 import { ChipStrategy } from './pages/fantasy/ChipStrategy';
+import { Settings } from './pages/fantasy/Settings';
+import { ImportTeam } from './pages/fantasy/ImportTeam';
+import { EnterTeam } from './pages/fantasy/EnterTeam';
 
 export default function App() {
   return (
@@ -55,6 +58,7 @@ export default function App() {
               <Route path="calculator" element={<TeamCalculator />} />
               <Route path="budget" element={<BudgetBuilder />} />
               <Route path="live" element={<LiveScoring />} />
+              <Route path="enter-team" element={<EnterTeam />} />
               <Route path="season" element={<SeasonSummary />} />
               <Route path="elite" element={<EliteData />} />
               <Route path="stats" element={<Statistics />} />
@@ -63,6 +67,8 @@ export default function App() {
               <Route path="hindsight" element={<Hindsight />} />
               <Route path="drs" element={<DRSBoost />} />
               <Route path="chips" element={<ChipStrategy />} />
+              <Route path="import" element={<ProtectedRoute><ImportTeam /></ProtectedRoute>} />
+              <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             </Route>
 
             {/* Legacy fantasy route */}
