@@ -14,6 +14,51 @@ export interface Driver {
   compound: string | null;
   tire_age: number | null;
   pit_stops: number;
+  grid_position?: number | null;
+  has_fastest_lap?: boolean;
+  is_dnf?: boolean;
+}
+
+export interface FantasyScoreBreakdown {
+  driver_number: number;
+  racePoints: number;
+  qualifyingPoints: number;
+  positionsGainedLost: number;
+  positionDelta: number;
+  fastestLapBonus: number;
+  dotdBonus: number;
+  overtakePoints: number;
+  sprintPoints: number;
+  dnfPenalty: number;
+  total: number;
+}
+
+export interface F1Player {
+  driver_number?: number;
+  constructor_id?: string;
+  name: string;
+  tla: string;
+  team_name: string;
+  team_color: string;
+  price: number;
+  old_price: number;
+  price_change: number;
+  selected_pct: number;
+  captain_pct: number;
+  gameday_points: number;
+  overall_points: number;
+  projected_points: number;
+  type: 'driver' | 'constructor';
+  status?: string;
+  is_active: boolean;
+}
+
+export interface F1RoundStats {
+  round: number;
+  gp_name: string;
+  country: string;
+  country_code: string;
+  points: Record<string, number>;
 }
 
 export interface Session {
