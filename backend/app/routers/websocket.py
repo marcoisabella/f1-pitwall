@@ -15,13 +15,54 @@ connected_clients: set[WebSocket] = set()
 _polling_task: asyncio.Task | None = None
 _last_state: dict | None = None
 
+# Module-level state for fantasy scoring enrichment
+_grid_positions: dict[int, int] = {}  # driver_number -> qualifying position
+_retired_drivers: set[int] = set()
+_fastest_lap_driver: int | None = None
+_enriched_meeting_key: int | None = None
+
+
+async def _load_grid_positions(meeting_key: int) -> None:
+    """Fetch qualifying positions for a meeting (called once per meeting)."""
+    global _grid_positions, _enriched_meeting_key
+    if meeting_key == _enriched_meeting_key and _grid_positions:
+        return
+    try:
+        sessions = await openf1.get_sessions_for_meeting(meeting_key)
+        quali_session = None
+        for s in sessions:
+            if s.get("session_type") == "Qualifying":
+                quali_session = s
+        if not quali_session:
+            _enriched_meeting_key = meeting_key
+            return
+        quali_positions = await openf1.get_qualifying_positions(quali_session["session_key"])
+        # Take the last recorded position per driver (final qualifying result)
+        grid: dict[int, int] = {}
+        for p in quali_positions:
+            num = p.get("driver_number")
+            pos = p.get("position")
+            if num and pos:
+                grid[num] = pos
+        _grid_positions = grid
+        _enriched_meeting_key = meeting_key
+    except Exception as e:
+        logger.warning(f"Failed to load qualifying grid: {e}")
+
 
 async def fetch_live_state() -> dict:
+    global _fastest_lap_driver
+
     session = await openf1.get_latest_session()
     if not session:
         return {"type": "full_state", "data": {"session": None, "drivers": []}}
 
     session_key = session["session_key"]
+
+    # Load qualifying grid positions once per meeting
+    meeting_key = session.get("meeting_key")
+    if meeting_key:
+        await _load_grid_positions(meeting_key)
 
     positions, intervals, laps, stints, race_control, drivers, weather = await asyncio.gather(
         openf1.get_positions(session_key),
@@ -136,6 +177,31 @@ async def fetch_live_state() -> dict:
     for num, count in pit_data.items():
         if num in driver_map:
             driver_map[num]["pit_stops"] = count
+
+    # --- Fantasy scoring enrichment ---
+
+    # Fastest lap: find minimum lap_duration across all drivers
+    best_lap_time: float | None = None
+    best_lap_driver: int | None = None
+    for num, lap in driver_laps.items():
+        duration = lap.get("lap_duration")
+        if duration is not None and (best_lap_time is None or duration < best_lap_time):
+            best_lap_time = duration
+            best_lap_driver = num
+    _fastest_lap_driver = best_lap_driver
+
+    # DNF detection: scan race_control for retirement keywords
+    for msg in race_control:
+        text = (msg.get("message") or "").upper()
+        num = msg.get("driver_number")
+        if num and ("RETIRED" in text or "OUT OF THE RACE" in text):
+            _retired_drivers.add(num)
+
+    # Enrich each driver with grid_position, has_fastest_lap, is_dnf
+    for num, d in driver_map.items():
+        d["grid_position"] = _grid_positions.get(num)
+        d["has_fastest_lap"] = (num == _fastest_lap_driver)
+        d["is_dnf"] = (num in _retired_drivers)
 
     sorted_drivers = sorted(
         driver_map.values(),

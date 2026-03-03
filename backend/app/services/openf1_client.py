@@ -165,5 +165,11 @@ class OpenF1Client:
             live=True,
         )
 
+    async def get_sessions_for_meeting(self, meeting_key: int) -> list[dict]:
+        return await self._request("/sessions", {"meeting_key": meeting_key})
+
+    async def get_qualifying_positions(self, session_key: int) -> list[dict]:
+        return await self._request("/position", {"session_key": session_key})
+
 
 openf1 = OpenF1Client()

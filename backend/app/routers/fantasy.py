@@ -570,9 +570,17 @@ async def f1_sync_team(
 @router.get("/f1-players")
 async def f1_players():
     """Get live player data from F1 Fantasy public feed. Includes prices, selection %, points."""
+    import logging
+    log = logging.getLogger(__name__)
     from app.services.f1_fantasy_import import f1_fantasy_importer
+    from app.utils.f1_constants import TEAM_COLORS, CONSTRUCTORS_2026
 
-    players = await f1_fantasy_importer.get_players()
+    try:
+        players = await f1_fantasy_importer.get_players()
+    except Exception as e:
+        log.exception("f1-players: get_players() failed")
+        raise HTTPException(502, f"Could not fetch player data: {e}")
+
     if not players:
         raise HTTPException(502, "Could not fetch F1 Fantasy player data.")
 
@@ -582,22 +590,44 @@ async def f1_players():
         info = f1_fantasy_importer._map_player(p)
         if not info:
             continue
+
+        value = p.get("Value") or 0
+        old_value = p.get("OldPlayerValue") or 0
+        team_name = info.get("team", p.get("TeamName", ""))
+        team_color = TEAM_COLORS.get(team_name, {}).get("hex", "#666666")
+
+        def _num(v) -> float:
+            try:
+                return float(v) if v is not None else 0.0
+            except (ValueError, TypeError):
+                return 0.0
+
         entry = {
-            **info,
-            "price": p.get("Value", 0),
-            "old_price": p.get("OldPlayerValue", 0),
-            "price_change": round(p.get("Value", 0) - p.get("OldPlayerValue", 0), 1),
-            "selected_pct": p.get("SelectedPercentage", 0),
-            "captain_pct": p.get("CaptainSelectedPercentage", 0),
-            "gameday_points": p.get("GamedayPoints", 0),
-            "overall_points": p.get("OverallPoints", 0),
-            "projected_points": p.get("ProjectedGamedayPoints", 0),
-            "status": p.get("Status"),
-            "is_active": p.get("IsActive", True),
+            "type": info.get("type"),
+            "name": info.get("name", ""),
+            "tla": info.get("tla", ""),
+            "team_name": team_name,
+            "team_color": team_color,
+            "price": value,
+            "old_price": old_value,
+            "price_change": round(value - old_value, 1),
+            "selected_pct": _num(p.get("SelectedPercentage")),
+            "captain_pct": _num(p.get("CaptainSelectedPercentage")),
+            "gameday_points": _num(p.get("GamedayPoints")),
+            "overall_points": _num(p.get("OverallPpints") or p.get("OverallPoints")),
+            "projected_points": _num(p.get("ProjectedGamedayPoints")),
+            "status": str(p.get("Status") or ""),
+            "is_active": str(p.get("IsActive", "1")) == "1",
         }
-        if info.get("type") == "constructor":
+
+        if info["type"] == "constructor":
+            cid = info.get("mapped_to", "")
+            entry["constructor_id"] = cid
+            cinfo = CONSTRUCTORS_2026.get(cid, {})
+            entry["team_color"] = cinfo.get("color", team_color)
             constructors.append(entry)
         else:
+            entry["driver_number"] = info.get("mapped_to")
             drivers.append(entry)
 
     return {"drivers": drivers, "constructors": constructors}

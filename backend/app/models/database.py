@@ -33,7 +33,11 @@ class FantasyTeam(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     season = Column(Integer, nullable=False)
+    team_number = Column(Integer, nullable=False, default=1)
+    name = Column(String, nullable=True)
     team_json = Column(JSON, nullable=False)
+    drs_boost_driver = Column(Integer, nullable=True)
+    active_chip = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -103,6 +107,23 @@ class LeagueMembership(Base):
     user = relationship("User")
 
 
+class FantasySettings(Base):
+    __tablename__ = "fantasy_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    season = Column(Integer, nullable=False, default=2026)
+    active_team_number = Column(Integer, nullable=False, default=1)
+    transfers_used = Column(Integer, nullable=False, default=0)
+    free_transfers_remaining = Column(Integer, nullable=False, default=3)
+    chips_used_json = Column(JSON, nullable=False, default=dict)
+    f1_fantasy_league_code = Column(String, nullable=True)
+    f1_fantasy_cookie = Column(Text, nullable=True)
+    f1_fantasy_league_id = Column(Integer, nullable=True)
+
+    user = relationship("User")
+
+
 class FantasyHistoricalScore(Base):
     __tablename__ = "fantasy_historical_scores"
 
@@ -117,6 +138,27 @@ class FantasyHistoricalScore(Base):
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Migrate existing tables to add new columns
+    async with engine.begin() as conn:
+        migrations = [
+            ("fantasy_teams", "team_number", "INTEGER", "1"),
+            ("fantasy_teams", "name", "TEXT", "NULL"),
+            ("fantasy_teams", "drs_boost_driver", "INTEGER", "NULL"),
+            ("fantasy_teams", "active_chip", "TEXT", "NULL"),
+            ("fantasy_settings", "f1_fantasy_league_code", "TEXT", "NULL"),
+            ("fantasy_settings", "f1_fantasy_cookie", "TEXT", "NULL"),
+            ("fantasy_settings", "f1_fantasy_league_id", "INTEGER", "NULL"),
+        ]
+        for table, col, col_type, default in migrations:
+            try:
+                await conn.execute(
+                    __import__("sqlalchemy").text(
+                        f"ALTER TABLE {table} ADD COLUMN {col} {col_type} DEFAULT {default}"
+                    )
+                )
+            except Exception:
+                pass  # Column already exists
 
 
 async def get_session() -> AsyncSession:

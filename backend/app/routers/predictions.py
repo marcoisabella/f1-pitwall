@@ -33,3 +33,14 @@ async def predict_strategy(driver_number: int, session_key: Optional[int] = Quer
 
     strategy = await prediction_engine.predict_strategy(session_key, driver_number)
     return {"session_key": session_key, "strategy": strategy}
+
+
+@router.get("/fantasy")
+async def predict_fantasy(session_key: Optional[int] = Query(None)):
+    """Get per-driver decomposed fantasy point predictions.
+
+    Returns qualifying, finish, positions gained, fastest lap, and DNF
+    expected points per driver using 4 specialized ML models.
+    """
+    predictions = await prediction_engine.predict_fantasy_points(session_key)
+    return {"predictions": predictions}
