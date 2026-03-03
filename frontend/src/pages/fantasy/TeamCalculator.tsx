@@ -49,6 +49,29 @@ interface OptimizeResult {
   budget_remaining: number;
 }
 
+/** Normalise the /optimize/mc response into our OptimizeResult shape */
+function parseOptimizeResponse(raw: Record<string, unknown>): OptimizeResult {
+  // drivers may be numbers or objects with driver_number
+  const rawDrivers = (raw.drivers ?? []) as Array<number | Record<string, unknown>>;
+  const drivers = rawDrivers.map(d =>
+    typeof d === 'number' ? d : (d as Record<string, unknown>).driver_number as number,
+  );
+
+  // constructors may be strings or objects with constructor_id
+  const rawConstructors = (raw.constructors ?? []) as Array<string | Record<string, unknown>>;
+  const constructors = rawConstructors.map(c =>
+    typeof c === 'string' ? c : (c as Record<string, unknown>).constructor_id as string,
+  );
+
+  return {
+    drivers,
+    constructors,
+    total_price: (raw.total_price as number) ?? 0,
+    expected_points: (raw.expected_points as number) ?? (raw.total_expected as number) ?? 0,
+    budget_remaining: (raw.budget_remaining as number) ?? 0,
+  };
+}
+
 /* ── Sort header helper ────────────────────────────────────── */
 
 function SortHeader<K extends string>({
@@ -326,8 +349,8 @@ export function TeamCalculator() {
     try {
       const res = await fetch('/api/fantasy/optimize/mc?mode=value');
       if (!res.ok) return;
-      const data: OptimizeResult = await res.json();
-      setOptimizedTeam(data);
+      const raw = await res.json();
+      setOptimizedTeam(parseOptimizeResponse(raw));
     } catch { /* ignore */ }
     finally { setOptimizing(false); }
   }, []);

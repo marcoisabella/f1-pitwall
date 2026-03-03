@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useFantasy } from '../hooks/useFantasy';
 import type { OptimizedTeam } from '../hooks/useFantasy';
 import { DriverSelectionGrid } from '../components/fantasy/DriverSelectionGrid';
+import { ConstructorSelectionGrid } from '../components/fantasy/ConstructorSelectionGrid';
 import { BudgetTracker } from '../components/fantasy/BudgetTracker';
 import { TeamActions } from '../components/fantasy/TeamActions';
 import { OptimizationSuggestion } from '../components/fantasy/OptimizationSuggestion';
@@ -11,13 +12,15 @@ import { useAuth } from '../hooks/useAuth';
 import { LoadingTelemetry } from '../components/common/LoadingTelemetry';
 
 const MAX_DRIVERS = 5;
+const MAX_CONSTRUCTORS = 2;
 const BUDGET = 100;
 
 export function Fantasy() {
   const { user, token } = useAuth();
-  const { drivers, savedTeam, isLoading } = useFantasy();
+  const { drivers, constructors, savedTeam, savedConstructors, isLoading } = useFantasy();
 
   const [selectedDrivers, setSelectedDrivers] = useState<number[]>([]);
+  const [selectedConstructors, setSelectedConstructors] = useState<string[]>([]);
   const [optimized, setOptimized] = useState<OptimizedTeam | null>(null);
   const [saving, setSaving] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -27,6 +30,9 @@ export function Fantasy() {
   // Initialize selection from saved team once loaded
   if (savedTeam && !initialized) {
     setSelectedDrivers(savedTeam);
+    if (savedConstructors) {
+      setSelectedConstructors(savedConstructors);
+    }
     setInitialized(true);
   }
 
@@ -53,6 +59,16 @@ export function Fantasy() {
     });
   }, []);
 
+  const toggleConstructor = useCallback((constructorId: string) => {
+    setSelectedConstructors(prev => {
+      if (prev.includes(constructorId)) {
+        return prev.filter(c => c !== constructorId);
+      }
+      if (prev.length >= MAX_CONSTRUCTORS) return prev;
+      return [...prev, constructorId];
+    });
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (!token) return;
     setSaving(true);
@@ -63,7 +79,7 @@ export function Fantasy() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ drivers: selectedDrivers }),
+        body: JSON.stringify({ drivers: selectedDrivers, constructors: selectedConstructors }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -74,7 +90,7 @@ export function Fantasy() {
     } finally {
       setSaving(false);
     }
-  }, [token, selectedDrivers]);
+  }, [token, selectedDrivers, selectedConstructors]);
 
   const handleOptimize = useCallback(async () => {
     if (!token) return;
@@ -94,8 +110,9 @@ export function Fantasy() {
     }
   }, [token]);
 
-  const handleApplyOptimized = useCallback((driverNumbers: number[]) => {
+  const handleApplyOptimized = useCallback((driverNumbers: number[], constructorIds: string[]) => {
     setSelectedDrivers(driverNumbers);
+    setSelectedConstructors(constructorIds);
     setOptimized(null);
   }, []);
 
@@ -115,8 +132,11 @@ export function Fantasy() {
   }
 
   const driverMap = new Map(drivers.map(d => [d.driver_number, d]));
-  const spent = selectedDrivers.reduce((sum, num) => sum + (driverMap.get(num)?.price || 0), 0);
-  const canSave = selectedDrivers.length === MAX_DRIVERS && spent <= BUDGET;
+  const constructorMap = new Map(constructors.map(c => [c.constructor_id, c]));
+  const driverSpent = selectedDrivers.reduce((sum, num) => sum + (driverMap.get(num)?.price || 0), 0);
+  const constructorSpent = selectedConstructors.reduce((sum, id) => sum + (constructorMap.get(id)?.price || 0), 0);
+  const totalSpent = driverSpent + constructorSpent;
+  const canSave = selectedDrivers.length === MAX_DRIVERS && selectedConstructors.length === MAX_CONSTRUCTORS && totalSpent <= BUDGET;
 
   return (
     <div className="space-y-4">
@@ -130,13 +150,19 @@ export function Fantasy() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left: Driver Selection (2/3) */}
-        <div className="lg:col-span-2">
+        {/* Left: Selection Grids (2/3) */}
+        <div className="lg:col-span-2 space-y-4">
           <DriverSelectionGrid
             drivers={drivers}
             selectedDrivers={selectedDrivers}
             onToggleDriver={toggleDriver}
             maxDrivers={MAX_DRIVERS}
+          />
+          <ConstructorSelectionGrid
+            constructors={constructors}
+            selectedConstructors={selectedConstructors}
+            onToggleConstructor={toggleConstructor}
+            maxConstructors={MAX_CONSTRUCTORS}
           />
         </div>
 
@@ -145,6 +171,8 @@ export function Fantasy() {
           <BudgetTracker
             selectedDrivers={selectedDrivers}
             drivers={drivers}
+            selectedConstructors={selectedConstructors}
+            constructors={constructors}
             budget={BUDGET}
           />
 
@@ -160,6 +188,7 @@ export function Fantasy() {
             <OptimizationSuggestion
               team={optimized}
               drivers={drivers}
+              constructors={constructors}
               onApply={handleApplyOptimized}
             />
           )}

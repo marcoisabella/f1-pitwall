@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useF1Players, useFantasy } from '../../hooks/useFantasy';
@@ -8,6 +8,15 @@ import { SearchBar } from '../../components/fantasy/SearchBar';
 import { DriverPill } from '../../components/fantasy/DriverPill';
 import { ConstructorPill } from '../../components/fantasy/ConstructorPill';
 import type { F1Player } from '../../types/f1';
+
+function contrastText(hex: string): string {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  const L = 0.299 * r + 0.587 * g + 0.114 * b;
+  return L > 160 ? '#000' : '#fff';
+}
 
 const BUDGET_CAP = 100.0;
 const MAX_DRIVERS = 5;
@@ -24,9 +33,21 @@ export function EnterTeam() {
   const [activeSlot, setActiveSlot] = useState<1 | 2 | 3>(1);
   const [searchDriver, setSearchDriver] = useState('');
   const [searchConstructor, setSearchConstructor] = useState('');
+  const [teamName, setTeamName] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset form when switching team slots
+  useEffect(() => {
+    setSelectedDrivers([]);
+    setSelectedConstructors([]);
+    setSaved(false);
+    setError(null);
+    setSearchDriver('');
+    setSearchConstructor('');
+    setSaving(false);
+  }, [activeSlot]);
 
   // Budget calculations
   const totalPrice = useMemo(() => {
@@ -292,8 +313,8 @@ export function EnterTeam() {
 
                     {/* Driver TLA pill */}
                     <div
-                      className="min-w-[48px] h-[28px] rounded-md flex items-center justify-center text-xs font-bold text-white uppercase"
-                      style={{ backgroundColor: `${d.team_color}CC` }}
+                      className="min-w-[48px] h-[28px] rounded-md flex items-center justify-center text-xs font-bold uppercase"
+                      style={{ backgroundColor: d.team_color, color: contrastText(d.team_color) }}
                     >
                       {d.tla}
                     </div>
@@ -404,8 +425,8 @@ export function EnterTeam() {
 
                     {/* Constructor TLA pill */}
                     <div
-                      className="min-w-[48px] h-[28px] rounded-md flex items-center justify-center text-xs font-bold text-white uppercase bg-f1-surface border-2"
-                      style={{ borderColor: c.team_color }}
+                      className="min-w-[48px] h-[28px] rounded-md flex items-center justify-center text-xs font-bold uppercase"
+                      style={{ backgroundColor: c.team_color, color: contrastText(c.team_color) }}
                     >
                       {c.tla}
                     </div>

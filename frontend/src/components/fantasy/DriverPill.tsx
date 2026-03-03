@@ -17,6 +17,17 @@ const SIZE_CLASSES = {
   lg: 'min-w-[56px] h-[36px] text-sm px-2.5',
 } as const;
 
+/** Return '#000' or '#fff' based on which has better contrast against the bg. */
+function contrastText(hex: string): string {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  // Relative luminance (sRGB)
+  const L = 0.299 * r + 0.587 * g + 0.114 * b;
+  return L > 160 ? '#000' : '#fff';
+}
+
 export function DriverPill({
   tla,
   teamColor,
@@ -29,6 +40,8 @@ export function DriverPill({
   onClick,
   size = 'md',
 }: DriverPillProps) {
+  const textColor = contrastText(teamColor);
+
   return (
     <div className="inline-flex flex-col items-center gap-0.5">
       <div className="relative">
@@ -43,7 +56,7 @@ export function DriverPill({
           disabled={disabled}
           className={`
             ${SIZE_CLASSES[size]}
-            rounded-md font-bold uppercase text-white text-center
+            rounded-md font-bold uppercase text-center
             flex items-center justify-center
             transition-all
             ${onClick ? 'cursor-pointer hover:brightness-110' : 'cursor-default'}
@@ -51,12 +64,8 @@ export function DriverPill({
             ${selected ? 'ring-2 ring-f1-green' : ''}
           `}
           style={{
-            backgroundColor: selected
-              ? undefined
-              : `${teamColor}CC`, // 80% opacity
-            background: selected
-              ? `linear-gradient(${teamColor}CC, ${teamColor}CC), rgba(0,255,127,0.1)`
-              : undefined,
+            backgroundColor: teamColor,
+            color: textColor,
           }}
         >
           {tla}

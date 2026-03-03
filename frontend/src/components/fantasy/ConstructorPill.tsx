@@ -16,6 +16,15 @@ const SIZE_CLASSES = {
   lg: 'min-w-[56px] h-[36px] text-sm px-2.5',
 } as const;
 
+function contrastText(hex: string): string {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  const L = 0.299 * r + 0.587 * g + 0.114 * b;
+  return L > 160 ? '#000' : '#fff';
+}
+
 export function ConstructorPill({
   tla,
   teamColor,
@@ -27,6 +36,8 @@ export function ConstructorPill({
   onClick,
   size = 'md',
 }: ConstructorPillProps) {
+  const textColor = contrastText(teamColor);
+
   return (
     <div className="inline-flex flex-col items-center gap-0.5">
       <button
@@ -35,15 +46,17 @@ export function ConstructorPill({
         disabled={disabled}
         className={`
           ${SIZE_CLASSES[size]}
-          rounded-md font-bold uppercase text-white text-center
-          bg-f1-surface border-2
+          rounded-md font-bold uppercase text-center
           flex items-center justify-center
           transition-all
           ${onClick ? 'cursor-pointer hover:brightness-110' : 'cursor-default'}
           ${disabled ? 'opacity-40 cursor-not-allowed' : ''}
-          ${selected ? 'ring-2 ring-f1-green bg-f1-green/10' : ''}
+          ${selected ? 'ring-2 ring-f1-green' : ''}
         `}
-        style={{ borderColor: teamColor }}
+        style={{
+          backgroundColor: teamColor,
+          color: textColor,
+        }}
       >
         {tla}
       </button>

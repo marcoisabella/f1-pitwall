@@ -36,14 +36,14 @@ export function LiveDashboard() {
         <ConnectionStatus status={connectionStatus} />
       </div>
 
-      {/* Main layout: timing (2/3) + side panels (1/3) */}
+      {/* Main layout: timing (left) + side panels (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left: Timing board */}
         <div className="lg:col-span-2">
           <LiveTimingBoard drivers={drivers} sectorBests={sectorBests} />
         </div>
 
-        {/* Right: Track map + Race control + Weather */}
+        {/* Right: Track map (prominent) + Race control + Weather */}
         <div className="space-y-4">
           <TrackMap
             carPositions={carPositions}

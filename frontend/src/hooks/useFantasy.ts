@@ -89,14 +89,15 @@ export function useFantasy() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  // Fetch user's saved teams + settings (requires auth)
+  // Fetch user's saved teams (requires auth) — independent of settings
   useEffect(() => {
     if (!token) return;
-    Promise.all([
-      authFetch('/api/fantasy/teams').then(r => r.json()),
-      authFetch('/api/fantasy/settings').then(r => r.json()),
-    ])
-      .then(([teamsData, settingsData]) => {
+    authFetch('/api/fantasy/teams')
+      .then(r => {
+        if (!r.ok) throw new Error(`GET /api/fantasy/teams: ${r.status}`);
+        return r.json();
+      })
+      .then(teamsData => {
         if (Array.isArray(teamsData.teams)) {
           setSavedTeams(teamsData.teams.map((t: Record<string, unknown>) => ({
             team_number: t.team_number ?? 1,
@@ -108,11 +109,24 @@ export function useFantasy() {
             active_chip: t.active_chip ?? null,
           })));
         }
+      })
+      .catch(err => console.error('[useFantasy] teams fetch failed:', err));
+  }, [token, authFetch]);
+
+  // Fetch user's fantasy settings (requires auth) — independent of teams
+  useEffect(() => {
+    if (!token) return;
+    authFetch('/api/fantasy/settings')
+      .then(r => {
+        if (!r.ok) throw new Error(`GET /api/fantasy/settings: ${r.status}`);
+        return r.json();
+      })
+      .then(settingsData => {
         if (settingsData && typeof settingsData === 'object') {
           setSettings(settingsData as FantasySettings);
         }
       })
-      .catch(() => {});
+      .catch(err => console.error('[useFantasy] settings fetch failed:', err));
   }, [token, authFetch]);
 
   const saveTeam = useCallback(async (
@@ -139,18 +153,26 @@ export function useFantasy() {
       throw new Error(data.detail || 'Failed to save team');
     }
     // Refresh teams
-    const teamsRes = await authFetch('/api/fantasy/teams');
-    const teamsData = await teamsRes.json();
-    if (Array.isArray(teamsData.teams)) {
-      setSavedTeams(teamsData.teams.map((t: Record<string, unknown>) => ({
-        team_number: t.team_number ?? 1,
-        name: t.name ?? null,
-        drivers: (t.drivers as number[]) ?? [],
-        constructors: (t.constructors as string[]) ?? [],
-        total_price: t.total_price ?? 0,
-        drs_boost_driver: t.drs_boost_driver ?? null,
-        active_chip: t.active_chip ?? null,
-      })));
+    try {
+      const teamsRes = await authFetch('/api/fantasy/teams');
+      if (!teamsRes.ok) {
+        console.error('[useFantasy] Refresh teams failed:', teamsRes.status);
+        return;
+      }
+      const teamsData = await teamsRes.json();
+      if (Array.isArray(teamsData.teams)) {
+        setSavedTeams(teamsData.teams.map((t: Record<string, unknown>) => ({
+          team_number: t.team_number ?? 1,
+          name: t.name ?? null,
+          drivers: (t.drivers as number[]) ?? [],
+          constructors: (t.constructors as string[]) ?? [],
+          total_price: t.total_price ?? 0,
+          drs_boost_driver: t.drs_boost_driver ?? null,
+          active_chip: t.active_chip ?? null,
+        })));
+      }
+    } catch (err) {
+      console.error('[useFantasy] Refresh teams error:', err);
     }
   }, [authFetch]);
 

@@ -4,11 +4,12 @@ export const TEAM_COLORS: Record<string, { hex: string; name: string }> = {
   'Ferrari': { hex: '#E8002D', name: 'Red' },
   'Mercedes': { hex: '#27F4D2', name: 'Teal' },
   'Aston Martin': { hex: '#229971', name: 'Green' },
-  'Alpine': { hex: '#FF87BC', name: 'Pink' },
-  'Haas F1 Team': { hex: '#B6BABD', name: 'Silver' },
-  'RB': { hex: '#6692FF', name: 'Blue' },
+  'Alpine': { hex: '#0093CC', name: 'Blue' },
+  'Haas': { hex: '#B6BABD', name: 'Silver' },
+  'Racing Bulls': { hex: '#6692FF', name: 'Blue' },
   'Williams': { hex: '#64C4FF', name: 'Light Blue' },
-  'Kick Sauber': { hex: '#52E252', name: 'Green' },
+  'Audi': { hex: '#00594F', name: 'Teal' },
+  'Cadillac': { hex: '#D4A96A', name: 'Gold' },
 };
 
 export function getTeamColor(teamName: string): string {
