@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -14,6 +15,8 @@ router = APIRouter()
 connected_clients: set[WebSocket] = set()
 _polling_task: asyncio.Task | None = None
 _last_state: dict | None = None
+_last_car_positions: list[dict] = []  # persist between polls
+_current_session_key: int | None = None  # detect session changes
 
 # Module-level state for fantasy scoring enrichment
 _grid_positions: dict[int, int] = {}  # driver_number -> qualifying position
@@ -51,13 +54,41 @@ async def _load_grid_positions(meeting_key: int) -> None:
 
 
 async def fetch_live_state() -> dict:
-    global _fastest_lap_driver
+    global _fastest_lap_driver, _current_session_key, _last_car_positions, _retired_drivers
 
     session = await openf1.get_latest_session()
     if not session:
         return {"type": "full_state", "data": {"session": None, "drivers": []}}
 
     session_key = session["session_key"]
+
+    # Compute session status from date_start / date_end
+    now = datetime.now(timezone.utc)
+    session_end_str = session.get("date_end", "")
+    session_start_str = session.get("date_start", "")
+    try:
+        session_end_parsed = datetime.fromisoformat(session_end_str)
+        session_start_parsed = datetime.fromisoformat(session_start_str)
+    except (ValueError, TypeError):
+        session_end_parsed = None
+        session_start_parsed = None
+
+    if session_end_parsed and now > session_end_parsed:
+        session_status = "ended"
+    elif session_start_parsed and now < session_start_parsed:
+        session_status = "upcoming"
+    else:
+        session_status = "live"
+
+    # Detect session change — clear stale state
+    if _current_session_key and _current_session_key != session_key:
+        _last_car_positions = []
+        _retired_drivers.clear()
+        _fastest_lap_driver = None
+        # Clear OpenF1 cache to get fresh data for new session
+        from app.services.openf1_client import _cache
+        _cache.clear()
+    _current_session_key = session_key
 
     # Load qualifying grid positions once per meeting
     meeting_key = session.get("meeting_key")
@@ -76,20 +107,57 @@ async def fetch_live_state() -> dict:
 
     # Fetch location data for track map (best-effort, don't fail if unavailable)
     car_positions = []
-    try:
-        locations = await openf1.get_location(session_key)
-        # Get latest position per driver
-        latest_loc: dict[int, dict] = {}
-        for loc in locations:
-            num = loc.get("driver_number")
-            if num:
-                latest_loc[num] = loc
-        car_positions = [
-            {"driver_number": num, "x": loc.get("x", 0), "y": loc.get("y", 0)}
-            for num, loc in latest_loc.items()
-        ]
-    except Exception as e:
-        logger.debug(f"Location data unavailable: {e}")
+    if session_status == "live":
+        try:
+            locations = []
+            now_loc = datetime.now(timezone.utc)
+            # Determine reference time: use session end if session has ended, else now
+            session_end_str_loc = session.get("date_end", "")
+            try:
+                session_end_loc = datetime.fromisoformat(session_end_str_loc)
+            except (ValueError, TypeError):
+                session_end_loc = None
+            ref_time = session_end_loc if session_end_loc and session_end_loc < now_loc else now_loc
+
+            # Try progressively wider time windows from reference time
+            for window_secs in [30, 120, 600]:
+                recent = (ref_time - timedelta(seconds=window_secs)).strftime("%Y-%m-%dT%H:%M:%S")
+                locations = await openf1._request(
+                    "/location", {"session_key": session_key, "date>": recent}, live=True,
+                )
+                if locations:
+                    break
+
+            if not locations and not _last_car_positions:
+                # Last resort: fetch per-driver with wide window
+                all_nums = [d.get("driver_number") for d in drivers if d.get("driver_number")]
+                fallback_recent = (ref_time - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+                tasks = [openf1.get_location(session_key, driver_number=n, date_gt=fallback_recent) for n in all_nums]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                locations = []
+                for r in results:
+                    if isinstance(r, list) and r:
+                        locations.append(r[-1])  # just last position per driver
+
+            if locations:
+                latest_loc: dict[int, dict] = {}
+                for loc in locations:
+                    num = loc.get("driver_number")
+                    if num:
+                        latest_loc[num] = loc
+                car_positions = [
+                    {"driver_number": num, "x": loc.get("x", 0), "y": loc.get("y", 0)}
+                    for num, loc in latest_loc.items()
+                ]
+                _last_car_positions = car_positions
+            elif _last_car_positions:
+                car_positions = _last_car_positions
+        except Exception as e:
+            logger.debug(f"Location data unavailable: {e}")
+            if _last_car_positions:
+                car_positions = _last_car_positions
+    else:
+        car_positions = _last_car_positions if _last_car_positions else []
 
     driver_map: dict[int, dict] = {}
     for d in drivers:
@@ -112,6 +180,10 @@ async def fetch_live_state() -> dict:
                 "tire_age": None,
                 "pit_stops": 0,
                 "drs": 0,
+                "speed_trap": None,
+                "best_lap_time": None,
+                "position_change": None,
+                "in_pit": False,
             }
 
     for p in positions:
@@ -129,20 +201,35 @@ async def fetch_live_state() -> dict:
     sector_bests = {"s1": None, "s2": None, "s3": None}
     driver_sector_bests: dict[int, dict] = {}
     driver_laps: dict[int, dict] = {}
+    driver_best_laps: dict[int, float] = {}  # personal best lap time
     for lap in laps:
         num = lap.get("driver_number")
         if num:
-            driver_laps[num] = lap
-            # Track personal bests
-            if num not in driver_sector_bests:
-                driver_sector_bests[num] = {"s1": None, "s2": None, "s3": None}
-            for sector, key in [("s1", "duration_sector_1"), ("s2", "duration_sector_2"), ("s3", "duration_sector_3")]:
-                val = lap.get(key)
-                if val is not None:
-                    if driver_sector_bests[num][sector] is None or val < driver_sector_bests[num][sector]:
-                        driver_sector_bests[num][sector] = val
-                    if sector_bests[sector] is None or val < sector_bests[sector]:
-                        sector_bests[sector] = val
+            dur = lap.get("lap_duration")
+            if dur is not None:
+                # Track personal best (only representative laps, < 2min)
+                if dur < 120:
+                    if num not in driver_best_laps or dur < driver_best_laps[num]:
+                        driver_best_laps[num] = dur
+                # For "last lap", prefer the latest representative lap
+                if dur < 120:
+                    driver_laps[num] = lap
+                elif num not in driver_laps:
+                    driver_laps[num] = lap
+            elif num not in driver_laps:
+                driver_laps[num] = lap
+            # Track sector bests (only from representative laps)
+            is_representative = dur is not None and dur < 120
+            if is_representative:
+                if num not in driver_sector_bests:
+                    driver_sector_bests[num] = {"s1": None, "s2": None, "s3": None}
+                for sector, key in [("s1", "duration_sector_1"), ("s2", "duration_sector_2"), ("s3", "duration_sector_3")]:
+                    val = lap.get(key)
+                    if val is not None:
+                        if driver_sector_bests[num][sector] is None or val < driver_sector_bests[num][sector]:
+                            driver_sector_bests[num][sector] = val
+                        if sector_bests[sector] is None or val < sector_bests[sector]:
+                            sector_bests[sector] = val
 
     for num, lap in driver_laps.items():
         if num in driver_map:
@@ -150,6 +237,8 @@ async def fetch_live_state() -> dict:
             driver_map[num]["sector_1_time"] = lap.get("duration_sector_1")
             driver_map[num]["sector_2_time"] = lap.get("duration_sector_2")
             driver_map[num]["sector_3_time"] = lap.get("duration_sector_3")
+            driver_map[num]["speed_trap"] = lap.get("st_speed")
+            driver_map[num]["best_lap_time"] = driver_best_laps.get(num)
 
     driver_stints: dict[int, dict] = {}
     for stint in stints:
@@ -159,13 +248,18 @@ async def fetch_live_state() -> dict:
     for num, stint in driver_stints.items():
         if num in driver_map:
             driver_map[num]["compound"] = stint.get("compound")
-            tire_age = stint.get("tyre_age_at_pit_out")
+            tire_age = stint.get("tyre_age_at_start")
+            if tire_age is None:
+                tire_age = stint.get("tyre_age_at_pit_out")
             lap_start = stint.get("lap_start")
             lap_end = stint.get("lap_end")
             if tire_age is not None and lap_end is not None and lap_start is not None:
                 driver_map[num]["tire_age"] = tire_age + (lap_end - lap_start)
             elif tire_age is not None:
                 driver_map[num]["tire_age"] = tire_age
+            # Pit detection: if stint has no lap_end, driver might be on a new stint (just pitted)
+            if stint.get("lap_end") is None and stint.get("stint_number", 1) > 1:
+                driver_map[num]["in_pit"] = True
 
     pit_data = {}
     for stint in stints:
@@ -180,15 +274,13 @@ async def fetch_live_state() -> dict:
 
     # --- Fantasy scoring enrichment ---
 
-    # Fastest lap: find minimum lap_duration across all drivers
-    best_lap_time: float | None = None
-    best_lap_driver: int | None = None
-    for num, lap in driver_laps.items():
-        duration = lap.get("lap_duration")
-        if duration is not None and (best_lap_time is None or duration < best_lap_time):
-            best_lap_time = duration
-            best_lap_driver = num
-    _fastest_lap_driver = best_lap_driver
+    # Fastest lap: use best lap times, not last lap
+    if driver_best_laps:
+        best_time = min(driver_best_laps.values())
+        for num, t in driver_best_laps.items():
+            if t == best_time:
+                _fastest_lap_driver = num
+                break
 
     # DNF detection: scan race_control for retirement keywords
     for msg in race_control:
@@ -197,21 +289,71 @@ async def fetch_live_state() -> dict:
         if num and ("RETIRED" in text or "OUT OF THE RACE" in text):
             _retired_drivers.add(num)
 
+    # Practice/qualifying: compute gaps and intervals from best laps
+    is_practice = session.get("session_type", "").lower() in ("practice", "qualifying")
+    if not intervals and driver_best_laps and is_practice:
+        overall_best = min(driver_best_laps.values())
+        for num, d in driver_map.items():
+            best = driver_best_laps.get(num)
+            if best is not None:
+                d["gap_to_leader"] = 0 if best == overall_best else round(best - overall_best, 3)
+
+    # Add best sector data per driver + personal best flags
+    for num, d in driver_map.items():
+        pb = driver_sector_bests.get(num, {"s1": None, "s2": None, "s3": None})
+        d["best_sector_1"] = pb["s1"]
+        d["best_sector_2"] = pb["s2"]
+        d["best_sector_3"] = pb["s3"]
+        d["is_pb_s1"] = (d.get("sector_1_time") is not None and pb["s1"] is not None
+                         and abs(d["sector_1_time"] - pb["s1"]) < 0.001)
+        d["is_pb_s2"] = (d.get("sector_2_time") is not None and pb["s2"] is not None
+                         and abs(d["sector_2_time"] - pb["s2"]) < 0.001)
+        d["is_pb_s3"] = (d.get("sector_3_time") is not None and pb["s3"] is not None
+                         and abs(d["sector_3_time"] - pb["s3"]) < 0.001)
+
     # Enrich each driver with grid_position, has_fastest_lap, is_dnf
     for num, d in driver_map.items():
         d["grid_position"] = _grid_positions.get(num)
         d["has_fastest_lap"] = (num == _fastest_lap_driver)
         d["is_dnf"] = (num in _retired_drivers)
 
-    sorted_drivers = sorted(
-        driver_map.values(),
-        key=lambda d: d["position"] if d["position"] is not None else 999,
-    )
+    # Sort: by best lap in practice, by position in race
+    if is_practice and driver_best_laps:
+        sorted_drivers = sorted(
+            driver_map.values(),
+            key=lambda d: driver_best_laps.get(d["driver_number"], 9999),
+        )
+        # Assign positions and intervals based on best lap order
+        prev_best = None
+        for i, d in enumerate(sorted_drivers):
+            d["position"] = i + 1
+            num = d["driver_number"]
+            best = driver_best_laps.get(num)
+            if i == 0:
+                d["interval"] = 0
+            elif best is not None and prev_best is not None:
+                d["interval"] = round(best - prev_best, 3)
+            prev_best = best
+    else:
+        sorted_drivers = sorted(
+            driver_map.values(),
+            key=lambda d: d["position"] if d["position"] is not None else 999,
+        )
+
+    # Compute position change (positive = gained positions)
+    for d in sorted_drivers:
+        num = d["driver_number"]
+        grid = _grid_positions.get(num)
+        if grid is not None and d["position"] is not None:
+            d["position_change"] = grid - d["position"]  # positive = gained positions
+        else:
+            d["position_change"] = None
 
     return {
         "type": "full_state",
         "data": {
             "session": session,
+            "session_status": session_status,
             "drivers": sorted_drivers,
             "race_control": race_control[-10:] if race_control else [],
             "weather": weather[-1] if weather else None,

@@ -14,9 +14,19 @@ export interface Driver {
   compound: string | null;
   tire_age: number | null;
   pit_stops: number;
+  speed_trap?: number | null;
+  best_lap_time?: number | null;
+  best_sector_1?: number | null;
+  best_sector_2?: number | null;
+  best_sector_3?: number | null;
   grid_position?: number | null;
   has_fastest_lap?: boolean;
   is_dnf?: boolean;
+  position_change?: number | null;
+  in_pit?: boolean;
+  is_pb_s1?: boolean;
+  is_pb_s2?: boolean;
+  is_pb_s3?: boolean;
 }
 
 export interface FantasyScoreBreakdown {
@@ -44,7 +54,7 @@ export interface F1Player {
   old_price: number;
   price_change: number;
   selected_pct: number;
-  captain_pct: number;
+  boost_pct: number;
   gameday_points: number;
   overall_points: number;
   projected_points: number;
@@ -106,6 +116,7 @@ export interface SectorBests {
 
 export interface LiveTimingState {
   session: Session | null;
+  session_status?: 'live' | 'ended' | 'upcoming';
   drivers: Driver[];
   race_control: RaceControl[];
   weather: Weather | null;
