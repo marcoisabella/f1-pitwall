@@ -10,6 +10,7 @@ interface UseLiveTimingReturn {
   carPositions: CarPosition[];
   sectorBests: SectorBests;
   connectionStatus: ConnectionStatus;
+  sessionStatus: 'live' | 'ended' | 'upcoming' | null;
 }
 
 export function useLiveTiming(): UseLiveTimingReturn {
@@ -19,6 +20,7 @@ export function useLiveTiming(): UseLiveTimingReturn {
   const [sessionInfo, setSessionInfo] = useState<Session | null>(null);
   const [carPositions, setCarPositions] = useState<CarPosition[]>([]);
   const [sectorBests, setSectorBests] = useState<SectorBests>({ s1: null, s2: null, s3: null });
+  const [sessionStatus, setSessionStatus] = useState<'live' | 'ended' | 'upcoming' | null>(null);
 
   const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/timing`;
 
@@ -47,6 +49,9 @@ export function useLiveTiming(): UseLiveTimingReturn {
       if (data.sector_bests) {
         setSectorBests(data.sector_bests);
       }
+      if (data.session_status) {
+        setSessionStatus(data.session_status);
+      }
     }
   }, []);
 
@@ -63,5 +68,6 @@ export function useLiveTiming(): UseLiveTimingReturn {
     carPositions,
     sectorBests,
     connectionStatus,
+    sessionStatus,
   };
 }
