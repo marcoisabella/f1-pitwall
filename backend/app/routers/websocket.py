@@ -85,6 +85,8 @@ async def fetch_live_state() -> dict:
         _last_car_positions = []
         _retired_drivers.clear()
         _fastest_lap_driver = None
+        _grid_positions.clear()
+        _enriched_meeting_key = None
         # Clear OpenF1 cache to get fresh data for new session
         from app.services.openf1_client import _cache
         _cache.clear()
@@ -110,14 +112,7 @@ async def fetch_live_state() -> dict:
     if session_status == "live":
         try:
             locations = []
-            now_loc = datetime.now(timezone.utc)
-            # Determine reference time: use session end if session has ended, else now
-            session_end_str_loc = session.get("date_end", "")
-            try:
-                session_end_loc = datetime.fromisoformat(session_end_str_loc)
-            except (ValueError, TypeError):
-                session_end_loc = None
-            ref_time = session_end_loc if session_end_loc and session_end_loc < now_loc else now_loc
+            ref_time = now  # session is live, use current time
 
             # Try progressively wider time windows from reference time
             for window_secs in [30, 120, 600]:
