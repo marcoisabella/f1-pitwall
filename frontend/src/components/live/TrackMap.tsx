@@ -15,7 +15,7 @@ interface CircuitData {
   y: number[];
 }
 
-export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
+export function TrackMap({ carPositions, circuitKey, drivers, sessionStatus, fullPage }: TrackMapProps) {
   const [circuit, setCircuit] = useState<CircuitData | null>(null);
   const [selectedDriver, setSelectedDriver] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -67,7 +67,7 @@ export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
 
   if (!circuit && carPositions.length === 0) {
     return (
-      <div className="bg-f1-surface rounded-lg border border-f1-border p-4 flex flex-col items-center justify-center h-52 gap-2">
+      <div className={fullPage ? 'h-full flex flex-col items-center justify-center gap-2' : 'bg-f1-surface rounded-lg border border-f1-border p-4 flex flex-col items-center justify-center h-52 gap-2'}>
         <div className="w-8 h-8 rounded-full border-2 border-f1-border border-t-f1-cyan animate-spin" />
         <span className="text-f1-text-muted text-xs font-[var(--font-display)]">
           Waiting for track data...
@@ -81,6 +81,14 @@ export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
   // Scale factor: all sizes in "design units" get multiplied by this
   const s = bounds.scale;
   const leaderNum = drivers.find(d => d.position === 1)?.driver_number;
+
+  const statusColor = sessionStatus === 'ended' ? 'bg-gray-500' : 'bg-f1-green';
+
+  const containerClass = fullPage
+    ? 'h-full flex flex-col'
+    : isExpanded
+      ? 'fixed inset-0 z-50 bg-f1-bg/95 backdrop-blur-md flex flex-col p-6'
+      : 'bg-f1-surface rounded-lg border border-f1-border relative group';
 
   const circuitPts = circuit
     ? circuit.x.map((x, i) => {
@@ -98,19 +106,15 @@ export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
   const selectedData = selectedDriver ? driverMap.get(selectedDriver) : null;
 
   return (
-    <div
-      className={
-        isExpanded
-          ? 'fixed inset-0 z-50 bg-f1-bg/95 backdrop-blur-md flex flex-col p-6'
-          : 'bg-f1-surface rounded-lg border border-f1-border relative group'
-      }
-    >
+    <div className={containerClass}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
         <h3 className="text-[10px] font-semibold text-f1-text-muted uppercase tracking-widest font-[var(--font-display)] flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-f1-green opacity-60" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-f1-green" />
+            {sessionStatus !== 'ended' && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-f1-green opacity-60" />
+            )}
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${statusColor}`} />
           </span>
           Track Map
         </h3>
@@ -118,7 +122,7 @@ export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
           {carPositions.length > 0 && (
             <span className="text-[9px] text-f1-text-muted font-timing">{carPositions.length} cars</span>
           )}
-          <button
+          {!fullPage && <button
             onClick={() => setIsExpanded(v => !v)}
             className="text-f1-text-muted hover:text-f1-cyan transition-colors p-1 rounded opacity-0 group-hover:opacity-100"
             style={isExpanded ? { opacity: 1 } : undefined}
@@ -130,16 +134,17 @@ export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
                 : <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
               }
             </svg>
-          </button>
+          </button>}
         </div>
       </div>
 
-      {/* SVG */}
-      <div className={isExpanded ? 'flex-1 min-h-0 flex items-center justify-center' : 'px-2 pb-2'}>
+      {/* SVG + optional driver list */}
+      <div className={isExpanded ? 'flex-1 min-h-0 flex flex-row' : 'px-2 pb-2'}>
+        <div className={isExpanded ? 'flex-1 min-h-0 flex items-center justify-center' : ''}>
         <svg
           viewBox={`0 0 ${bounds.width} ${bounds.height}`}
           className="w-full h-auto"
-          style={{ maxHeight: isExpanded ? 'calc(100vh - 10rem)' : '380px' }}
+          style={{ maxHeight: fullPage ? 'none' : isExpanded ? 'calc(100vh - 10rem)' : '380px' }}
           preserveAspectRatio="xMidYMid meet"
         >
           {/* Circuit outline */}
@@ -203,6 +208,7 @@ export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
                   transform: `translate(${svgP.x}px, ${svgP.y}px)`,
                   transition: 'transform 2s cubic-bezier(0.25, 0.1, 0.25, 1)',
                 }}
+                opacity={sessionStatus === 'ended' ? 0.3 : (d?.in_pit ? 0.3 : 1)}
                 onClick={() => setSelectedDriver(selectedDriver === pos.driver_number ? null : pos.driver_number)}
                 className="cursor-pointer"
               >
@@ -213,8 +219,8 @@ export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
                 <circle
                   cx={0} cy={0} r={dotR}
                   fill={color}
-                  stroke={isSel || isLeader ? '#fff' : 'none'}
-                  strokeWidth={s * 0.8}
+                  stroke={isSel ? '#fff' : isLeader ? '#fff' : d?.has_fastest_lap ? '#A855F7' : 'none'}
+                  strokeWidth={isSel || isLeader || d?.has_fastest_lap ? s * 0.8 : 0}
                 />
 
                 {/* Label */}
@@ -230,10 +236,61 @@ export function TrackMap({ carPositions, circuitKey, drivers }: TrackMapProps) {
                 >
                   {d?.name_acronym ?? ''}
                 </text>
+
+                {/* Position number */}
+                {d?.position && (
+                  <text
+                    x={0} y={dotR + s * 4}
+                    textAnchor="middle" fill="#fff"
+                    fontSize={s * 3.5} fontFamily="var(--font-mono)"
+                    fontWeight="600" opacity={0.6}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    P{d.position}
+                  </text>
+                )}
               </g>
             );
           })}
+
+          {/* Session ended overlay */}
+          {sessionStatus === 'ended' && (
+            <g>
+              <rect x={0} y={0} width={bounds.width} height={bounds.height} fill="#0F0F13" opacity={0.6} />
+              <text
+                x={bounds.width / 2} y={bounds.height / 2}
+                textAnchor="middle" fill="#6B7280"
+                fontSize={s * 12} fontFamily="var(--font-display)" fontWeight="700"
+              >
+                SESSION ENDED
+              </text>
+            </g>
+          )}
         </svg>
+        </div>
+
+        {/* Expanded view driver list */}
+        {isExpanded && (
+          <div className="w-56 flex-shrink-0 overflow-auto border-l border-f1-border bg-f1-surface/80">
+            {[...drivers].sort((a, b) => (a.position ?? 99) - (b.position ?? 99)).map(d => (
+              <button
+                key={d.driver_number}
+                onClick={() => setSelectedDriver(d.driver_number === selectedDriver ? null : d.driver_number)}
+                className={`w-full px-2 py-1 text-left text-xs flex items-center gap-2 hover:bg-f1-elevated/50 ${
+                  d.driver_number === selectedDriver ? 'bg-f1-elevated' : ''
+                }`}
+              >
+                <span className="font-timing w-5">{d.position ?? '\u2014'}</span>
+                <span className="w-1.5 h-4 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: getTeamColorFromHex(d.team_colour) }} />
+                <span className="font-bold font-[var(--font-display)] text-[11px]">{d.name_acronym}</span>
+                <span className="ml-auto font-timing text-f1-text-muted text-[10px]">
+                  {d.gap_to_leader ? `+${typeof d.gap_to_leader === 'number' ? d.gap_to_leader.toFixed(1) : d.gap_to_leader}` : ''}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Selected driver card */}
