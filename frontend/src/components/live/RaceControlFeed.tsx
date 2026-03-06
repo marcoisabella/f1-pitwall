@@ -2,6 +2,7 @@ import type { RaceControl } from '../../types/f1';
 
 interface RaceControlFeedProps {
   messages: RaceControl[];
+  expanded?: boolean;
 }
 
 function getFlagColor(flag: string): string {
@@ -14,7 +15,7 @@ function getFlagColor(flag: string): string {
   return 'border-l-f1-border bg-f1-surface';
 }
 
-export function RaceControlFeed({ messages }: RaceControlFeedProps) {
+export function RaceControlFeed({ messages, expanded }: RaceControlFeedProps) {
   const sorted = [...messages].reverse();
 
   return (
@@ -22,7 +23,7 @@ export function RaceControlFeed({ messages }: RaceControlFeedProps) {
       <h3 className="text-xs font-semibold text-f1-text-muted uppercase tracking-wider px-3 py-2 border-b border-f1-border font-[var(--font-display)]">
         Race Control
       </h3>
-      <div className="max-h-48 overflow-y-auto divide-y divide-f1-border/50">
+      <div className={`${expanded ? '' : 'max-h-48'} overflow-y-auto divide-y divide-f1-border/50`}>
         {sorted.length === 0 ? (
           <div className="px-3 py-4 text-center text-f1-text-muted text-xs">
             No race control messages

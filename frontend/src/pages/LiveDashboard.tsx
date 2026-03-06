@@ -121,7 +121,7 @@ function ConditionsView({ weather, raceControl }: ConditionsViewProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <EnhancedWeather weather={weather} />
-      <RaceControlFeed messages={raceControl} />
+      <RaceControlFeed messages={raceControl} expanded />
     </div>
   );
 }
